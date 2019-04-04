@@ -1,4 +1,4 @@
-package librato
+package appoptics
 
 import (
 	"bytes"
@@ -11,8 +11,8 @@ import (
 const Operations = "operations"
 const OperationsShort = "ops"
 
-type LibratoClient struct {
-	Email, Token string
+type AppOpticsClient struct {
+	Token string
 }
 
 // property strings
@@ -37,32 +37,30 @@ const (
 	Attributes  = "attributes"
 
 	// measurement keys
-	MeasureTime = "measure_time"
-	Source      = "source"
-	Value       = "value"
+	Time  = "time"
+	Tags  = "tags"
+	Value = "value"
 
 	// special gauge keys
-	Count      = "count"
-	Sum        = "sum"
-	Max        = "max"
-	Min        = "min"
-	SumSquares = "sum_squares"
+	Count  = "count"
+	Sum    = "sum"
+	Max    = "max"
+	Min    = "min"
+	StdDev = "stddev"
 
 	// batch keys
-	Counters = "counters"
-	Gauges   = "gauges"
+	Measurements = "measurements"
 
-	MetricsPostUrl = "https://metrics-api.librato.com/v1/metrics"
+	MetricsPostUrl = "https://api.appoptics.com/v1/measurements"
 )
 
 type Measurement map[string]interface{}
 type Metric map[string]interface{}
 
 type Batch struct {
-	Gauges      []Measurement `json:"gauges,omitempty"`
-	Counters    []Measurement `json:"counters,omitempty"`
-	MeasureTime int64         `json:"measure_time"`
-	Source      string        `json:"source"`
+	Measurements []Measurement     `json:"measurements,omitempty"`
+	Time         int64             `json:"time"`
+	Tags         map[string]string `json:"tags"`
 }
 
 var client = http.DefaultClient
@@ -71,14 +69,14 @@ func SetHTTPClient(c *http.Client) {
 	client = c
 }
 
-func (self *LibratoClient) PostMetrics(batch Batch) (err error) {
+func (self *AppOpticsClient) PostMetrics(batch Batch) (err error) {
 	var (
 		js   []byte
 		req  *http.Request
 		resp *http.Response
 	)
 
-	if len(batch.Counters) == 0 && len(batch.Gauges) == 0 {
+	if len(batch.Measurements) == 0 {
 		return nil
 	}
 
@@ -91,7 +89,7 @@ func (self *LibratoClient) PostMetrics(batch Batch) (err error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.SetBasicAuth(self.Email, self.Token)
+	req.SetBasicAuth(self.Token, "")
 
 	if resp, err = client.Do(req); err != nil {
 		return
@@ -103,7 +101,7 @@ func (self *LibratoClient) PostMetrics(batch Batch) (err error) {
 		if body, err = ioutil.ReadAll(resp.Body); err != nil {
 			body = []byte(fmt.Sprintf("(could not fetch response body for error: %s)", err))
 		}
-		err = fmt.Errorf("Unable to post to Librato: %d %s %s", resp.StatusCode, resp.Status, string(body))
+		err = fmt.Errorf("Unable to post to AppOptics: %d %s %s", resp.StatusCode, resp.Status, string(body))
 	}
 	return
 }
