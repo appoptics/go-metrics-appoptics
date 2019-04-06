@@ -13,13 +13,14 @@ if you need to upload source-based metrics instead.
 import "github.com/ysamlan/go-metrics-appoptics"
 
 go appoptics.AppOptics(metrics.DefaultRegistry,
-    10e9,                       // interval
+    10*time.Second,             // interval for uploads
     "token",                    // AppOptics API token
     map[string]string{
-        "hostname": "localhost" // tags
+        "hostname": "localhost", // tags
     }, 
     []float64{0.95},            // percentiles to send
-    time.Millisecond,           // time unit
+    time.Millisecond,           // time units for timers
+    "myservicename."            // prefix on reported metric names
 )
 ```
 
@@ -38,3 +39,4 @@ this.
   only requires the token)
 * Change the `source` argument from a `string` into a `map[string]string` for tags - e.g. 
   `"myhostname"` would become `map[string]string{"source":"myhostname"}`).
+* Add a prefix argument (use "" for none).

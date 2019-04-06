@@ -26,18 +26,19 @@ type Reporter struct {
 	Interval        time.Duration
 	Registry        metrics.Registry
 	Percentiles     []float64              // percentiles to report on histogram metrics
+	Prefix          string                 // prefix metric names for upload (eg "servicename.")
 	TimerAttributes map[string]interface{} // units in which timers will be displayed
 	intervalSec     int64
 }
 
-func NewReporter(registry metrics.Registry, duration time.Duration, token string, tags map[string]string,
-	percentiles []float64, timeUnits time.Duration) *Reporter {
-	return &Reporter{token, tags, duration, registry, percentiles, translateTimerAttributes(timeUnits), int64(duration / time.Second)}
+func NewReporter(registry metrics.Registry, interval time.Duration, token string, tags map[string]string,
+	percentiles []float64, timeUnits time.Duration, prefix string) *Reporter {
+	return &Reporter{token, tags, interval, registry, percentiles, prefix, translateTimerAttributes(timeUnits), int64(interval / time.Second)}
 }
 
-func AppOptics(registry metrics.Registry, duration time.Duration, token string, tags map[string]string,
-	percentiles []float64, timeUnits time.Duration) {
-	NewReporter(registry, duration, token, tags, percentiles, timeUnits).Run()
+func AppOptics(registry metrics.Registry, interval time.Duration, token string, tags map[string]string,
+	percentiles []float64, timeUnits time.Duration, prefix string) {
+	NewReporter(registry, interval, token, tags, percentiles, timeUnits, prefix).Run()
 }
 
 func (self *Reporter) Run() {
@@ -66,6 +67,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 	snapshot.Measurements = make([]Measurement, 0)
 	histogramMeasurementCount := 1 + len(self.Percentiles)
 	r.Each(func(name string, metric interface{}) {
+		name = self.Prefix + name
 		measurement := Measurement{}
 		measurement[Period] = self.Interval.Seconds()
 		switch m := metric.(type) {
