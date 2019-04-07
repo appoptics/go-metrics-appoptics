@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/rcrowley/go-metrics"
@@ -21,24 +22,43 @@ func translateTimerAttributes(d time.Duration) (attrs map[string]interface{}) {
 }
 
 type Reporter struct {
-	Token           string
-	Tags            map[string]string
-	Interval        time.Duration
-	Registry        metrics.Registry
-	Percentiles     []float64              // percentiles to report on histogram metrics
-	Prefix          string                 // prefix metric names for upload (eg "servicename.")
-	TimerAttributes map[string]interface{} // units in which timers will be displayed
-	intervalSec     int64
+	Token                     string
+	Tags                      map[string]string
+	Interval                  time.Duration
+	Registry                  metrics.Registry
+	Percentiles               []float64              // percentiles to report on histogram metrics
+	Prefix                    string                 // prefix metric names for upload (eg "servicename.")
+	WhitelistedRuntimeMetrics map[string]bool        // runtime.* metrics to upload (nil = allow all)
+	TimerAttributes           map[string]interface{} // units in which timers will be displayed
+	intervalSec               int64
 }
 
 func NewReporter(registry metrics.Registry, interval time.Duration, token string, tags map[string]string,
-	percentiles []float64, timeUnits time.Duration, prefix string) *Reporter {
-	return &Reporter{token, tags, interval, registry, percentiles, prefix, translateTimerAttributes(timeUnits), int64(interval / time.Second)}
+	percentiles []float64, timeUnits time.Duration, prefix string, whitelistedRuntimeMetrics []string) *Reporter {
+	// set up lookups for our whitelist. Translate from []string to map[string]bool for easy lookups
+	// nil = allow all; empty slice = block all
+	var whitelist map[string]bool
+	if whitelistedRuntimeMetrics != nil {
+		whitelist = map[string]bool{}
+		for _, name := range whitelistedRuntimeMetrics {
+			whitelist[name] = true
+		}
+	}
+
+	return &Reporter{token, tags, interval, registry, percentiles, prefix,
+		whitelist, translateTimerAttributes(timeUnits),
+		int64(interval / time.Second)}
 }
 
+// Call in a goroutine to start metric uploading.
+// Using whitelistedRuntimeMetrics: a non-nil value sets this reporter to upload only a subset
+// of the runtime.* metrics that are gathered by go-metrics runtime memory stats
+// (CaptureRuntimeMemStats). The full list of possible values is at
+// https://github.com/rcrowley/go-metrics/blob/master/runtime.go#L181-L211
+// Passing an empty slice disables uploads for all runtime.* metrics.
 func AppOptics(registry metrics.Registry, interval time.Duration, token string, tags map[string]string,
-	percentiles []float64, timeUnits time.Duration, prefix string) {
-	NewReporter(registry, interval, token, tags, percentiles, timeUnits, prefix).Run()
+	percentiles []float64, timeUnits time.Duration, prefix string, whitelistedRuntimeMetrics []string) {
+	NewReporter(registry, interval, token, tags, percentiles, timeUnits, prefix, whitelistedRuntimeMetrics).Run()
 }
 
 func (self *Reporter) Run() {
@@ -67,6 +87,12 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 	snapshot.Measurements = make([]Measurement, 0)
 	histogramMeasurementCount := 1 + len(self.Percentiles)
 	r.Each(func(name string, metric interface{}) {
+		// if whitelis is set (non-nil), only upload runtime.* metrics from the list
+		if strings.HasPrefix(name, "runtime.") && self.WhitelistedRuntimeMetrics != nil &&
+			!self.WhitelistedRuntimeMetrics[name] {
+			return
+		}
+
 		name = self.Prefix + name
 		measurement := Measurement{}
 		measurement[Period] = self.Interval.Seconds()
