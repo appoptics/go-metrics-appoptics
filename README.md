@@ -20,7 +20,7 @@ go appoptics.AppOptics(metrics.DefaultRegistry,
     }, 
     []float64{0.95},            // percentiles to send
     time.Millisecond,           // time units for timers
-    "myservicename."            // prefix on reported metric names
+    "myservicename.",            // prefix on reported metric names
 )
 ```
 
