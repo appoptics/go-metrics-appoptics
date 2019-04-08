@@ -1,10 +1,10 @@
-package librato
+package appoptics
 
 import (
 	"fmt"
 	"log"
-	"math"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/rcrowley/go-metrics"
@@ -13,7 +13,7 @@ import (
 // a regexp for extracting the unit from time.Duration.String
 var unitRegexp = regexp.MustCompile("[^\\d]+$")
 
-// a helper that turns a time.Duration into librato display attributes for timer metrics
+// a helper that turns a time.Duration into AppOptics display attributes for timer metrics
 func translateTimerAttributes(d time.Duration) (attrs map[string]interface{}) {
 	attrs = make(map[string]interface{})
 	attrs[DisplayTransform] = fmt.Sprintf("x/%d", int64(d))
@@ -22,71 +22,78 @@ func translateTimerAttributes(d time.Duration) (attrs map[string]interface{}) {
 }
 
 type Reporter struct {
-	Email, Token    string
-	Source          string
-	Interval        time.Duration
-	Registry        metrics.Registry
-	Percentiles     []float64              // percentiles to report on histogram metrics
-	TimerAttributes map[string]interface{} // units in which timers will be displayed
-	intervalSec     int64
+	Token                     string
+	Tags                      map[string]string
+	Interval                  time.Duration
+	Registry                  metrics.Registry
+	Percentiles               []float64              // percentiles to report on histogram metrics
+	Prefix                    string                 // prefix metric names for upload (eg "servicename.")
+	WhitelistedRuntimeMetrics map[string]bool        // runtime.* metrics to upload (nil = allow all)
+	TimerAttributes           map[string]interface{} // units in which timers will be displayed
+	intervalSec               int64
 }
 
-func NewReporter(r metrics.Registry, d time.Duration, e string, t string, s string, p []float64, u time.Duration) *Reporter {
-	return &Reporter{e, t, s, d, r, p, translateTimerAttributes(u), int64(d / time.Second)}
+func NewReporter(registry metrics.Registry, interval time.Duration, token string, tags map[string]string,
+	percentiles []float64, timeUnits time.Duration, prefix string, whitelistedRuntimeMetrics []string) *Reporter {
+	// set up lookups for our whitelist. Translate from []string to map[string]bool for easy lookups
+	// nil = allow all; empty slice = block all
+	var whitelist map[string]bool
+	if whitelistedRuntimeMetrics != nil {
+		whitelist = map[string]bool{}
+		for _, name := range whitelistedRuntimeMetrics {
+			whitelist[name] = true
+		}
+	}
+
+	return &Reporter{token, tags, interval, registry, percentiles, prefix,
+		whitelist, translateTimerAttributes(timeUnits),
+		int64(interval / time.Second)}
 }
 
-func Librato(r metrics.Registry, d time.Duration, e string, t string, s string, p []float64, u time.Duration) {
-	NewReporter(r, d, e, t, s, p, u).Run()
+// Call in a goroutine to start metric uploading.
+// Using whitelistedRuntimeMetrics: a non-nil value sets this reporter to upload only a subset
+// of the runtime.* metrics that are gathered by go-metrics runtime memory stats
+// (CaptureRuntimeMemStats). The full list of possible values is at
+// https://github.com/rcrowley/go-metrics/blob/master/runtime.go#L181-L211
+// Passing an empty slice disables uploads for all runtime.* metrics.
+func AppOptics(registry metrics.Registry, interval time.Duration, token string, tags map[string]string,
+	percentiles []float64, timeUnits time.Duration, prefix string, whitelistedRuntimeMetrics []string) {
+	NewReporter(registry, interval, token, tags, percentiles, timeUnits, prefix, whitelistedRuntimeMetrics).Run()
 }
 
 func (self *Reporter) Run() {
 	ticker := time.Tick(self.Interval)
-	metricsApi := &LibratoClient{self.Email, self.Token}
+	metricsApi := &AppOpticsClient{self.Token}
 	for now := range ticker {
 		var metrics Batch
 		var err error
 		if metrics, err = self.BuildRequest(now, self.Registry); err != nil {
-			log.Printf("ERROR constructing librato request body %s", err)
+			log.Printf("ERROR constructing AppOptics request body %s", err)
 			continue
 		}
 		if err := metricsApi.PostMetrics(metrics); err != nil {
-			log.Printf("ERROR sending metrics to librato %s", err)
+			log.Printf("ERROR sending metrics to AppOptics %s", err)
 			continue
 		}
 	}
-}
-
-// calculate sum of squares from data provided by metrics.Histogram
-// see http://en.wikipedia.org/wiki/Standard_deviation#Rapid_calculation_methods
-func sumSquares(s metrics.Sample) float64 {
-	count := float64(s.Count())
-	sumSquared := math.Pow(count*s.Mean(), 2)
-	sumSquares := math.Pow(count*s.StdDev(), 2) + sumSquared/count
-	if math.IsNaN(sumSquares) {
-		return 0.0
-	}
-	return sumSquares
-}
-func sumSquaresTimer(t metrics.Timer) float64 {
-	count := float64(t.Count())
-	sumSquared := math.Pow(count*t.Mean(), 2)
-	sumSquares := math.Pow(count*t.StdDev(), 2) + sumSquared/count
-	if math.IsNaN(sumSquares) {
-		return 0.0
-	}
-	return sumSquares
 }
 
 func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot Batch, err error) {
 	snapshot = Batch{
-		// coerce timestamps to a stepping fn so that they line up in Librato graphs
-		MeasureTime: (now.Unix() / self.intervalSec) * self.intervalSec,
-		Source:      self.Source,
+		// coerce timestamps to a stepping fn so that they line up in AppOptics graphs
+		Time: (now.Unix() / self.intervalSec) * self.intervalSec,
+		Tags: self.Tags,
 	}
-	snapshot.Gauges = make([]Measurement, 0)
-	snapshot.Counters = make([]Measurement, 0)
-	histogramGaugeCount := 1 + len(self.Percentiles)
+	snapshot.Measurements = make([]Measurement, 0)
+	histogramMeasurementCount := 1 + len(self.Percentiles)
 	r.Each(func(name string, metric interface{}) {
+		// if whitelis is set (non-nil), only upload runtime.* metrics from the list
+		if strings.HasPrefix(name, "runtime.") && self.WhitelistedRuntimeMetrics != nil &&
+			!self.WhitelistedRuntimeMetrics[name] {
+			return
+		}
+
+		name = self.Prefix + name
 		measurement := Measurement{}
 		measurement[Period] = self.Interval.Seconds()
 		switch m := metric.(type) {
@@ -99,44 +106,44 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 					DisplayUnitsShort: OperationsShort,
 					DisplayMin:        "0",
 				}
-				snapshot.Counters = append(snapshot.Counters, measurement)
+				snapshot.Measurements = append(snapshot.Measurements, measurement)
 			}
 		case metrics.Gauge:
 			measurement[Name] = name
 			measurement[Value] = float64(m.Value())
-			snapshot.Gauges = append(snapshot.Gauges, measurement)
+			snapshot.Measurements = append(snapshot.Measurements, measurement)
 		case metrics.GaugeFloat64:
 			measurement[Name] = name
 			measurement[Value] = float64(m.Value())
-			snapshot.Gauges = append(snapshot.Gauges, measurement)
+			snapshot.Measurements = append(snapshot.Measurements, measurement)
 		case metrics.Histogram:
 			if m.Count() > 0 {
-				gauges := make([]Measurement, histogramGaugeCount, histogramGaugeCount)
+				measurements := make([]Measurement, histogramMeasurementCount, histogramMeasurementCount)
 				s := m.Sample()
 				measurement[Name] = fmt.Sprintf("%s.%s", name, "hist")
-				// For Librato, count must be the number of measurements in this sample. It will show sum/count as the mean.
+				// For AppOptics, count must be the number of measurements in this sample. It will show sum/count as the mean.
 				// Sample.Size() gives us this. Sample.Count() gives the total number of measurements ever recorded for the
-				// life of the histogram, which means the Librato graph will trend toward 0 as more measurements are recored.
+				// life of the histogram, which means the AppOptics graph will trend toward 0 as more measurements are recored.
 				measurement[Count] = uint64(s.Size())
 				measurement[Max] = float64(s.Max())
 				measurement[Min] = float64(s.Min())
 				measurement[Sum] = float64(s.Sum())
-				measurement[SumSquares] = sumSquares(s)
-				gauges[0] = measurement
+				measurement[StdDev] = float64(s.StdDev())
+				measurements[0] = measurement
 				for i, p := range self.Percentiles {
-					gauges[i+1] = Measurement{
+					measurements[i+1] = Measurement{
 						Name:   fmt.Sprintf("%s.%.2f", measurement[Name], p),
 						Value:  s.Percentile(p),
 						Period: measurement[Period],
 					}
 				}
-				snapshot.Gauges = append(snapshot.Gauges, gauges...)
+				snapshot.Measurements = append(snapshot.Measurements, measurements...)
 			}
 		case metrics.Meter:
 			measurement[Name] = name
 			measurement[Value] = float64(m.Count())
-			snapshot.Counters = append(snapshot.Counters, measurement)
-			snapshot.Gauges = append(snapshot.Gauges,
+			snapshot.Measurements = append(snapshot.Measurements, measurement)
+			snapshot.Measurements = append(snapshot.Measurements,
 				Measurement{
 					Name:   fmt.Sprintf("%s.%s", name, "1min"),
 					Value:  m.Rate1(),
@@ -171,30 +178,30 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 		case metrics.Timer:
 			measurement[Name] = name
 			measurement[Value] = float64(m.Count())
-			snapshot.Counters = append(snapshot.Counters, measurement)
+			snapshot.Measurements = append(snapshot.Measurements, measurement)
 			if m.Count() > 0 {
-				libratoName := fmt.Sprintf("%s.%s", name, "timer.mean")
-				gauges := make([]Measurement, histogramGaugeCount, histogramGaugeCount)
-				gauges[0] = Measurement{
-					Name:       libratoName,
+				appOpticsName := fmt.Sprintf("%s.%s", name, "timer.mean")
+				measurements := make([]Measurement, histogramMeasurementCount, histogramMeasurementCount)
+				measurements[0] = Measurement{
+					Name:       appOpticsName,
 					Count:      uint64(m.Count()),
 					Sum:        m.Mean() * float64(m.Count()),
 					Max:        float64(m.Max()),
 					Min:        float64(m.Min()),
-					SumSquares: sumSquaresTimer(m),
+					StdDev:     float64(m.StdDev()),
 					Period:     int64(self.Interval.Seconds()),
 					Attributes: self.TimerAttributes,
 				}
 				for i, p := range self.Percentiles {
-					gauges[i+1] = Measurement{
+					measurements[i+1] = Measurement{
 						Name:       fmt.Sprintf("%s.timer.%2.0f", name, p*100),
 						Value:      m.Percentile(p),
 						Period:     int64(self.Interval.Seconds()),
 						Attributes: self.TimerAttributes,
 					}
 				}
-				snapshot.Gauges = append(snapshot.Gauges, gauges...)
-				snapshot.Gauges = append(snapshot.Gauges,
+				snapshot.Measurements = append(snapshot.Measurements, measurements...)
+				snapshot.Measurements = append(snapshot.Measurements,
 					Measurement{
 						Name:   fmt.Sprintf("%s.%s", name, "rate.1min"),
 						Value:  m.Rate1(),
