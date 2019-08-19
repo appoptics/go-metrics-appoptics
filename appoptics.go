@@ -82,7 +82,6 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 	snapshot = Batch{
 		// coerce timestamps to a stepping fn so that they line up in AppOptics graphs
 		Time: (now.Unix() / self.intervalSec) * self.intervalSec,
-		Tags: self.Tags,
 	}
 	snapshot.Measurements = make([]Measurement, 0)
 	histogramMeasurementCount := 1 + len(self.Percentiles)
@@ -93,9 +92,22 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 			return
 		}
 
+		name, tags := decodeMetricName(name)
 		name = self.Prefix + name
 		measurement := Measurement{}
 		measurement[Period] = self.Interval.Seconds()
+
+		var mergedTags map[string]string
+		// Copy to prevent mutating Reporter's global tags
+		for tagName, tagValue := range self.Tags {
+			mergedTags[tagName] = tagValue
+		}
+		// Per-measurement tags override global tags
+		for tagName, tagValue := range tags {
+			mergedTags[tagName] = tagValue
+		}
+		measurement[Tags] = mergedTags
+
 		switch m := metric.(type) {
 		case metrics.Counter:
 			if m.Count() > 0 {

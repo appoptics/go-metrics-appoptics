@@ -55,7 +55,6 @@ const (
 )
 
 type Measurement map[string]interface{}
-type Metric map[string]interface{}
 
 type Batch struct {
 	Measurements []Measurement     `json:"measurements,omitempty"`
