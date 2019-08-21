@@ -35,7 +35,11 @@ func (m *metric) Sample(s metrics.Sample) *metric {
 func (m *metric) String() string {
 	sb := strings.Builder{}
 
-	sb.WriteString(m.name + "#")
+	sb.WriteString(m.name)
+
+	if len(m.tags) > 0 {
+		sb.WriteString("#")
+	}
 
 	// TODO: sort, for consistent ordering
 	for name, value := range m.tags {
@@ -83,6 +87,10 @@ func (m *metric) Gauge64() metrics.GaugeFloat64 {
 func decodeMetricName(encoded string) (string, map[string]string) {
 	split := strings.SplitN(encoded, "#", 2)
 	name := split[0]
+	if len(split) == 1 {
+		return name, map[string]string{}
+	}
+
 	tagPart := split[1]
 	pairs := strings.Split(tagPart, ",")
 
