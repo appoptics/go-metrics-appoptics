@@ -13,6 +13,7 @@ var tagValueRegex = regexp.MustCompile(`[^-.:_\\/\w\? ]`)
 type metric struct {
 	name string
 	tags map[string]string
+	sample *metrics.Sample
 }
 
 func Metric(name string) *metric {
@@ -23,6 +24,11 @@ func (m *metric) Tag(name string, value interface{}) *metric {
 	tagName := sanitizeTagName(fmt.Sprintf("%v", name))
 	tagValue := sanitizeTagValue(fmt.Sprintf("%v", value))
 	m.tags[tagName] = tagValue
+	return m
+}
+
+func (m *metric) Sample(s metrics.Sample) *metric {
+	m.sample = &s
 	return m
 }
 
