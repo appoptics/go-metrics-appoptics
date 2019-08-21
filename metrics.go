@@ -17,7 +17,7 @@ type metric struct {
 }
 
 func Metric(name string) *metric {
-	return &metric{name: name}
+	return &metric{name: name, tags: map[string]string{}}
 }
 
 func (m *metric) Tag(name string, value interface{}) *metric {
