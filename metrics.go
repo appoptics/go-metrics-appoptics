@@ -52,12 +52,24 @@ func (m *metric) Timer() metrics.Timer {
 	return metrics.GetOrRegisterTimer(m.String(), metrics.DefaultRegistry)
 }
 
-func (m *metric) Histogram(s metrics.Sample) metrics.Histogram {
-	return metrics.GetOrRegisterHistogram(m.String(), metrics.DefaultRegistry, s)
+func (m *metric) Histogram() metrics.Histogram {
+	sample := func(s *metrics.Sample) metrics.Sample {
+		if s == nil {
+			return metrics.NewExpDecaySample(1028, 0.015)
+		} else {
+			return *s
+		}
+	}
+
+	return metrics.GetOrRegister(m.String(), sample(m.sample)).(metrics.Histogram)
 }
 
 func (m *metric) Gauge() metrics.Gauge {
 	return metrics.GetOrRegisterGauge(m.String(), metrics.DefaultRegistry)
+}
+
+func (m *metric) Gauge64() metrics.GaugeFloat64 {
+	return metrics.GetOrRegisterGaugeFloat64(m.String(), metrics.DefaultRegistry)
 }
 
 // decodeMetricName decodes the metricName#a=foo,b=bar format and returns the metric name
