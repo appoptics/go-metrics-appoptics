@@ -19,7 +19,7 @@ func Metric(name string) *metric {
 	return &metric{name: name}
 }
 
-func (m *metric) Tag(name, value string) *metric {
+func (m *metric) Tag(name string, value interface{}) *metric {
 	tagName := sanitizeTagName(fmt.Sprintf("%v", name))
 	tagValue := sanitizeTagValue(fmt.Sprintf("%v", value))
 	m.tags[tagName] = tagValue
