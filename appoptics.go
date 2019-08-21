@@ -31,10 +31,11 @@ type Reporter struct {
 	WhitelistedRuntimeMetrics map[string]bool        // runtime.* metrics to upload (nil = allow all)
 	TimerAttributes           map[string]interface{} // units in which timers will be displayed
 	intervalSec               int64
+	measurementsURI           string
 }
 
 func NewReporter(registry metrics.Registry, interval time.Duration, token string, tags map[string]string,
-	percentiles []float64, timeUnits time.Duration, prefix string, whitelistedRuntimeMetrics []string) *Reporter {
+	percentiles []float64, timeUnits time.Duration, prefix string, whitelistedRuntimeMetrics []string, measurementsURI string) *Reporter {
 	// set up lookups for our whitelist. Translate from []string to map[string]bool for easy lookups
 	// nil = allow all; empty slice = block all
 	var whitelist map[string]bool
@@ -47,7 +48,7 @@ func NewReporter(registry metrics.Registry, interval time.Duration, token string
 
 	return &Reporter{token, tags, interval, registry, percentiles, prefix,
 		whitelist, translateTimerAttributes(timeUnits),
-		int64(interval / time.Second)}
+		int64(interval / time.Second), measurementsURI}
 }
 
 // Call in a goroutine to start metric uploading.
@@ -57,13 +58,13 @@ func NewReporter(registry metrics.Registry, interval time.Duration, token string
 // https://github.com/rcrowley/go-metrics/blob/master/runtime.go#L181-L211
 // Passing an empty slice disables uploads for all runtime.* metrics.
 func AppOptics(registry metrics.Registry, interval time.Duration, token string, tags map[string]string,
-	percentiles []float64, timeUnits time.Duration, prefix string, whitelistedRuntimeMetrics []string) {
-	NewReporter(registry, interval, token, tags, percentiles, timeUnits, prefix, whitelistedRuntimeMetrics).Run()
+	percentiles []float64, timeUnits time.Duration, prefix string, whitelistedRuntimeMetrics []string, measurementsURI string) {
+	NewReporter(registry, interval, token, tags, percentiles, timeUnits, prefix, whitelistedRuntimeMetrics, measurementsURI).Run()
 }
 
 func (self *Reporter) Run() {
 	ticker := time.Tick(self.Interval)
-	metricsApi := &AppOpticsClient{self.Token}
+	metricsApi := NewAppOpticsClient(self.Token, self.measurementsURI)
 	for now := range ticker {
 		var metrics Batch
 		var err error

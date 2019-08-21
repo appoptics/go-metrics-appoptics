@@ -13,6 +13,15 @@ const OperationsShort = "ops"
 
 type AppOpticsClient struct {
 	Token string
+	MeasurementsURI string
+}
+
+func NewAppOpticsClient(token, measurementsURI string) *AppOpticsClient {
+	if measurementsURI == "" {
+		measurementsURI = defaultMeasurementsURI
+	}
+
+	return &AppOpticsClient{token, measurementsURI}
 }
 
 // property strings
@@ -51,7 +60,7 @@ const (
 	// batch keys
 	Measurements = "measurements"
 
-	MetricsPostUrl = "https://api.appoptics.com/v1/measurements"
+	defaultMeasurementsURI = "https://api.appoptics.com/v1/measurements"
 )
 
 type Measurement map[string]interface{}
@@ -83,7 +92,7 @@ func (self *AppOpticsClient) PostMetrics(batch Batch) (err error) {
 		return
 	}
 
-	if req, err = http.NewRequest("POST", MetricsPostUrl, bytes.NewBuffer(js)); err != nil {
+	if req, err = http.NewRequest("POST", self.MeasurementsURI, bytes.NewBuffer(js)); err != nil {
 		return
 	}
 
