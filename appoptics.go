@@ -97,7 +97,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 		measurement := Measurement{}
 		measurement[Period] = self.Interval.Seconds()
 
-		var mergedTags map[string]string
+		mergedTags := map[string]string{}
 		// Copy to prevent mutating Reporter's global tags
 		for tagName, tagValue := range self.Tags {
 			mergedTags[tagName] = tagValue
