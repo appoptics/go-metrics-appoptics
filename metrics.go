@@ -14,7 +14,7 @@ var tagValueRegex = regexp.MustCompile(`[^-.:_\\/\w\? ]`)
 type metric struct {
 	name string
 	tags map[string]string
-	sample *metrics.Sample
+	sampleFunc func() metrics.Sample
 }
 
 func Metric(name string) *metric {
@@ -28,8 +28,8 @@ func (m *metric) Tag(name string, value interface{}) *metric {
 	return m
 }
 
-func (m *metric) Sample(s metrics.Sample) *metric {
-	m.sample = &s
+func (m *metric) WithSample(s func() metrics.Sample) *metric {
+	m.sampleFunc = s
 	return m
 }
 
@@ -70,15 +70,16 @@ func (m *metric) Timer() metrics.Timer {
 }
 
 func (m *metric) Histogram() metrics.Histogram {
-	sample := func(s *metrics.Sample) metrics.Sample {
-		if s == nil {
+	var sample func() metrics.Sample
+	if m.sampleFunc != nil {
+		sample = m.sampleFunc
+	} else {
+		sample = func() metrics.Sample {
 			return metrics.NewExpDecaySample(1028, 0.015)
-		} else {
-			return *s
 		}
 	}
 
-	return metrics.GetOrRegister(m.String(), sample(m.sample)).(metrics.Histogram)
+	return metrics.GetOrRegister(m.String(), func() metrics.Histogram {return metrics.NewHistogram(sample())}).(metrics.Histogram)
 }
 
 func (m *metric) Gauge() metrics.Gauge {
