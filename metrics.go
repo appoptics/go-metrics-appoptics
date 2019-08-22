@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/rcrowley/go-metrics"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -41,9 +42,15 @@ func (m *metric) String() string {
 		sb.WriteString("#")
 	}
 
-	// TODO: sort, for consistent ordering
-	for name, value := range m.tags {
-		sb.WriteString(name + "=" + value + ",")
+	// Sort tag map for consistent ordering in encoded string
+	var keys []string
+	for key := range m.tags {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		sb.WriteString(key + "=" + m.tags[key] + ",")
 	}
 
 	// Hacky way to remove trailing comma
