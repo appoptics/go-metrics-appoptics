@@ -22,7 +22,7 @@ func Metric(name string) *metric {
 }
 
 func (m *metric) Tag(name string, value interface{}) *metric {
-	tagName := sanitizeTagName(fmt.Sprintf("%v", name))
+	tagName := sanitizeTagName(name)
 	tagValue := sanitizeTagValue(fmt.Sprintf("%v", value))
 	m.tags[tagName] = tagValue
 	return m
