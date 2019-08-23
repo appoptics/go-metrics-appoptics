@@ -10,6 +10,7 @@ import (
 
 const Operations = "operations"
 const OperationsShort = "ops"
+const PartialFailureHeader = "x-partial-failure"
 
 type AppOpticsClient struct {
 	Token string
@@ -104,7 +105,7 @@ func (self *AppOpticsClient) PostMetrics(batch Batch) (err error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusAccepted {
+	if resp.StatusCode != http.StatusAccepted || resp.Header.Get(PartialFailureHeader) != "" {
 		var body []byte
 		if body, err = ioutil.ReadAll(resp.Body); err != nil {
 			body = []byte(fmt.Sprintf("(could not fetch response body for error: %s)", err))
