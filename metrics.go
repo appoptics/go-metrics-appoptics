@@ -56,12 +56,14 @@ func (m *metric) String() string {
 	}
 	sort.Strings(keys)
 
-	for _, key := range keys {
-		sb.WriteString(key + "=" + m.tags[key] + ",")
+	for i, key := range keys {
+		if i != 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString(key + "=" + m.tags[key])
 	}
 
-	// Hacky way to remove trailing comma
-	return strings.TrimSuffix(sb.String(), ",")
+	return sb.String()
 }
 
 func (m *metric) Counter() metrics.Counter {
