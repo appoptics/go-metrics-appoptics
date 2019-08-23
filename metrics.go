@@ -105,7 +105,7 @@ func decodeMetricName(encoded string) (string, map[string]string) {
 	split := strings.SplitN(encoded, "#", 2)
 	name := split[0]
 	if len(split) == 1 {
-		return name, map[string]string{}
+		return name, nil
 	}
 
 	tagPart := split[1]
