@@ -146,6 +146,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 				for i, p := range self.Percentiles {
 					measurements[i+1] = Measurement{
 						Name:   fmt.Sprintf("%s.%.2f", measurement[Name], p),
+						Tags:   mergedTags,
 						Value:  s.Percentile(p),
 						Period: measurement[Period],
 					}
@@ -159,6 +160,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 			snapshot.Measurements = append(snapshot.Measurements,
 				Measurement{
 					Name:   fmt.Sprintf("%s.%s", name, "1min"),
+					Tags:   mergedTags,
 					Value:  m.Rate1(),
 					Period: int64(self.Interval.Seconds()),
 					Attributes: map[string]interface{}{
@@ -169,6 +171,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 				},
 				Measurement{
 					Name:   fmt.Sprintf("%s.%s", name, "5min"),
+					Tags:   mergedTags,
 					Value:  m.Rate5(),
 					Period: int64(self.Interval.Seconds()),
 					Attributes: map[string]interface{}{
@@ -179,6 +182,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 				},
 				Measurement{
 					Name:   fmt.Sprintf("%s.%s", name, "15min"),
+					Tags:   mergedTags,
 					Value:  m.Rate15(),
 					Period: int64(self.Interval.Seconds()),
 					Attributes: map[string]interface{}{
@@ -197,6 +201,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 				measurements := make([]Measurement, histogramMeasurementCount, histogramMeasurementCount)
 				measurements[0] = Measurement{
 					Name:       appOpticsName,
+					Tags:       mergedTags,
 					Count:      uint64(m.Count()),
 					Sum:        m.Mean() * float64(m.Count()),
 					Max:        float64(m.Max()),
@@ -208,6 +213,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 				for i, p := range self.Percentiles {
 					measurements[i+1] = Measurement{
 						Name:       fmt.Sprintf("%s.timer.%2.0f", name, p*100),
+						Tags:       mergedTags,
 						Value:      m.Percentile(p),
 						Period:     int64(self.Interval.Seconds()),
 						Attributes: self.TimerAttributes,
@@ -217,6 +223,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 				snapshot.Measurements = append(snapshot.Measurements,
 					Measurement{
 						Name:   fmt.Sprintf("%s.%s", name, "rate.1min"),
+						Tags:   mergedTags,
 						Value:  m.Rate1(),
 						Period: int64(self.Interval.Seconds()),
 						Attributes: map[string]interface{}{
@@ -227,6 +234,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 					},
 					Measurement{
 						Name:   fmt.Sprintf("%s.%s", name, "rate.5min"),
+						Tags:   mergedTags,
 						Value:  m.Rate5(),
 						Period: int64(self.Interval.Seconds()),
 						Attributes: map[string]interface{}{
@@ -237,6 +245,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 					},
 					Measurement{
 						Name:   fmt.Sprintf("%s.%s", name, "rate.15min"),
+						Tags:   mergedTags,
 						Value:  m.Rate15(),
 						Period: int64(self.Interval.Seconds()),
 						Attributes: map[string]interface{}{
