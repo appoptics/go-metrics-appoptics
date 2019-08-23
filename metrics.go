@@ -3,6 +3,7 @@ package appoptics
 import (
 	"fmt"
 	"github.com/rcrowley/go-metrics"
+	"log"
 	"regexp"
 	"sort"
 	"strings"
@@ -24,6 +25,12 @@ func Metric(name string) *metric {
 func (m *metric) Tag(name string, value interface{}) *metric {
 	tagName := sanitizeTagName(name)
 	tagValue := sanitizeTagValue(fmt.Sprintf("%v", value))
+
+	if tagName == "" || tagValue == "" {
+		log.Printf("Empty tag name or value: name=%v value=%v", tagName, tagValue)
+		return m
+	}
+
 	m.tags[tagName] = tagValue
 	return m
 }
@@ -105,6 +112,10 @@ func decodeMetricName(encoded string) (string, map[string]string) {
 	tags := map[string]string{}
 	for _, pair := range pairs {
 		pairList := strings.SplitN(pair, "=", 2)
+		if len(pairList) != 2 {
+			log.Printf("Tag name `%v` is missing its value", pairList[0])
+			continue
+		}
 		tags[pairList[0]] = pairList[1]
 	}
 
