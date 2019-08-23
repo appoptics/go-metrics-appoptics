@@ -12,46 +12,46 @@ import (
 var tagNameRegex = regexp.MustCompile(`[^-.:_\w]`)
 var tagValueRegex = regexp.MustCompile(`[^-.:_\\/\w\? ]`)
 
-type metric struct {
+type TaggedMetric struct {
 	name string
 	tags map[string]string
 	sampleFunc func() metrics.Sample
 }
 
-func Metric(name string) *metric {
-	return &metric{name: name, tags: map[string]string{}}
+func Metric(name string) *TaggedMetric {
+	return &TaggedMetric{name: name, tags: map[string]string{}}
 }
 
-func (m *metric) Tag(name string, value interface{}) *metric {
+func (t *TaggedMetric) Tag(name string, value interface{}) *TaggedMetric {
 	tagName := sanitizeTagName(name)
 	tagValue := sanitizeTagValue(fmt.Sprintf("%v", value))
 
 	if tagName == "" || tagValue == "" {
 		log.Printf("Empty tag name or value: name=%v value=%v", tagName, tagValue)
-		return m
+		return t
 	}
 
-	m.tags[tagName] = tagValue
-	return m
+	t.tags[tagName] = tagValue
+	return t
 }
 
-func (m *metric) WithSample(s func() metrics.Sample) *metric {
-	m.sampleFunc = s
-	return m
+func (t *TaggedMetric) WithSample(s func() metrics.Sample) *TaggedMetric {
+	t.sampleFunc = s
+	return t
 }
 
-func (m *metric) String() string {
+func (t *TaggedMetric) String() string {
 	sb := strings.Builder{}
 
-	sb.WriteString(m.name)
+	sb.WriteString(t.name)
 
-	if len(m.tags) > 0 {
+	if len(t.tags) > 0 {
 		sb.WriteString("#")
 	}
 
 	// Sort tag map for consistent ordering in encoded string
 	var keys []string
-	for key := range m.tags {
+	for key := range t.tags {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
@@ -60,46 +60,46 @@ func (m *metric) String() string {
 		if i != 0 {
 			sb.WriteString(",")
 		}
-		sb.WriteString(key + "=" + m.tags[key])
+		sb.WriteString(key + "=" + t.tags[key])
 	}
 
 	return sb.String()
 }
 
-func (m *metric) Counter() metrics.Counter {
-	return metrics.GetOrRegisterCounter(m.String(), metrics.DefaultRegistry)
+func (t *TaggedMetric) Counter() metrics.Counter {
+	return metrics.GetOrRegisterCounter(t.String(), metrics.DefaultRegistry)
 }
 
-func (m *metric) Meter() metrics.Meter {
-	return metrics.GetOrRegisterMeter(m.String(), metrics.DefaultRegistry)
+func (t *TaggedMetric) Meter() metrics.Meter {
+	return metrics.GetOrRegisterMeter(t.String(), metrics.DefaultRegistry)
 }
 
-func (m *metric) Timer() metrics.Timer {
-	return metrics.GetOrRegisterTimer(m.String(), metrics.DefaultRegistry)
+func (t *TaggedMetric) Timer() metrics.Timer {
+	return metrics.GetOrRegisterTimer(t.String(), metrics.DefaultRegistry)
 }
 
-func (m *metric) Histogram() metrics.Histogram {
+func (t *TaggedMetric) Histogram() metrics.Histogram {
 	var sample func() metrics.Sample
-	if m.sampleFunc != nil {
-		sample = m.sampleFunc
+	if t.sampleFunc != nil {
+		sample = t.sampleFunc
 	} else {
 		sample = func() metrics.Sample {
 			return metrics.NewExpDecaySample(1028, 0.015)
 		}
 	}
 
-	return metrics.GetOrRegister(m.String(), func() metrics.Histogram {return metrics.NewHistogram(sample())}).(metrics.Histogram)
+	return metrics.GetOrRegister(t.String(), func() metrics.Histogram {return metrics.NewHistogram(sample())}).(metrics.Histogram)
 }
 
-func (m *metric) Gauge() metrics.Gauge {
-	return metrics.GetOrRegisterGauge(m.String(), metrics.DefaultRegistry)
+func (t *TaggedMetric) Gauge() metrics.Gauge {
+	return metrics.GetOrRegisterGauge(t.String(), metrics.DefaultRegistry)
 }
 
-func (m *metric) Gauge64() metrics.GaugeFloat64 {
-	return metrics.GetOrRegisterGaugeFloat64(m.String(), metrics.DefaultRegistry)
+func (t *TaggedMetric) Gauge64() metrics.GaugeFloat64 {
+	return metrics.GetOrRegisterGaugeFloat64(t.String(), metrics.DefaultRegistry)
 }
 
-// decodeMetricName decodes the metricName#a=foo,b=bar format and returns the metric name
+// decodeMetricName decodes the metricName#a=foo,b=bar format and returns the TaggedMetric name
 // as a string and the tags as a map
 func decodeMetricName(encoded string) (string, map[string]string) {
 	split := strings.SplitN(encoded, "#", 2)
