@@ -32,3 +32,11 @@ func TestTagSanitation(t *testing.T) {
 	metric = Metric("myMetric")
 	assert.Equal(t, "myMetric#f_o=1", metric.Tag("f=o", "1").String())
 }
+
+func TestMetricSanitation(t *testing.T) {
+	metric := Metric("myMetric#")
+	assert.Equal(t, "myMetric_", metric.String())
+
+	metric = Metric("myMetric#").Tag("foo", "bar")
+	assert.Equal(t, "myMetric_#foo=bar", metric.String())
+}

@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+var metricNameRegex = regexp.MustCompile(`[^-.:_\w]`)
 var tagNameRegex = regexp.MustCompile(`[^-.:_\w]`)
 var tagValueRegex = regexp.MustCompile(`[^-.:_\\/\w\? ]`)
 
@@ -19,7 +20,7 @@ type TaggedMetric struct {
 }
 
 func Metric(name string) *TaggedMetric {
-	return &TaggedMetric{name: name, tags: map[string]string{}}
+	return &TaggedMetric{name: sanitizeMetricName(name), tags: map[string]string{}}
 }
 
 func (t *TaggedMetric) Tag(name string, value interface{}) *TaggedMetric {
@@ -138,4 +139,11 @@ func sanitizeTagValue(value string) string {
 	}
 	value = strings.ToLower(value)
 	return tagValueRegex.ReplaceAllString(value, "_")
+}
+
+func sanitizeMetricName(value string) string {
+	if len(value) > 255 {
+		value = value[:252] + "..."
+	}
+	return metricNameRegex.ReplaceAllString(value, "_")
 }
