@@ -24,3 +24,11 @@ func TestEncodeMetric(t *testing.T) {
 	assert.Equal(t, "myMetric#foo=1", Metric("myMetric").Tag("foo", 1).String())
 	assert.Equal(t, "myMetric#bar=2,foo=1", Metric("myMetric").Tag("foo", 1).Tag("bar", 2).String())
 }
+
+func TestTagSanitation(t *testing.T) {
+	metric := Metric("myMetric")
+	assert.Equal(t, "myMetric#foo=1_2", metric.Tag("foo", "1&2").String())
+
+	metric = Metric("myMetric")
+	assert.Equal(t, "myMetric#f_o=1", metric.Tag("f=o", "1").String())
+}
