@@ -22,6 +22,5 @@ func TestDecodeMetric(t *testing.T) {
 func TestEncodeMetric(t *testing.T) {
 	assert.Equal(t, "myMetric", Metric("myMetric").String())
 	assert.Equal(t, "myMetric#foo=1", Metric("myMetric").Tag("foo", 1).String())
-	assert.Equal(t, "myMetric#foo=1,bar=2", Metric("myMetric").Tag("foo", 1).Tag("bar", 2).String())
-
+	assert.Equal(t, "myMetric#bar=2,foo=1", Metric("myMetric").Tag("foo", 1).Tag("bar", 2).String())
 }
