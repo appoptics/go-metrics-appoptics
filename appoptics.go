@@ -79,12 +79,12 @@ func (self *Reporter) Run() {
 	}
 }
 
-func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot Batch, err error) {
-	snapshot = Batch{
+func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (batch Batch, err error) {
+	batch = Batch{
 		// coerce timestamps to a stepping fn so that they line up in AppOptics graphs
 		Time: (now.Unix() / self.intervalSec) * self.intervalSec,
 	}
-	snapshot.Measurements = make([]Measurement, 0)
+	batch.Measurements = make([]Measurement, 0)
 	histogramMeasurementCount := 1 + len(self.Percentiles)
 	r.Each(func(name string, metric interface{}) {
 		// if whitelis is set (non-nil), only upload runtime.* metrics from the list
@@ -119,20 +119,20 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 					DisplayUnitsShort: OperationsShort,
 					DisplayMin:        "0",
 				}
-				snapshot.Measurements = append(snapshot.Measurements, measurement)
+				batch.Measurements = append(batch.Measurements, measurement)
 			}
 		case metrics.Gauge:
 			measurement[Name] = name
 			measurement[Value] = float64(m.Value())
-			snapshot.Measurements = append(snapshot.Measurements, measurement)
+			batch.Measurements = append(batch.Measurements, measurement)
 		case metrics.GaugeFloat64:
 			measurement[Name] = name
 			measurement[Value] = float64(m.Value())
-			snapshot.Measurements = append(snapshot.Measurements, measurement)
+			batch.Measurements = append(batch.Measurements, measurement)
 		case metrics.Histogram:
-			if m.Count() > 0 {
+			s := m.Snapshot().Sample()
+			if s.Count() > 0 {
 				measurements := make([]Measurement, histogramMeasurementCount, histogramMeasurementCount)
-				s := m.Sample()
 				measurement[Name] = fmt.Sprintf("%s.%s", name, "hist")
 				// For AppOptics, count must be the number of measurements in this sample. It will show sum/count as the mean.
 				// Sample.Size() gives us this. Sample.Count() gives the total number of measurements ever recorded for the
@@ -151,17 +151,18 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 						Period: measurement[Period],
 					}
 				}
-				snapshot.Measurements = append(snapshot.Measurements, measurements...)
+				batch.Measurements = append(batch.Measurements, measurements...)
 			}
 		case metrics.Meter:
+			s := m.Snapshot()
 			measurement[Name] = name
-			measurement[Value] = float64(m.Count())
-			snapshot.Measurements = append(snapshot.Measurements, measurement)
-			snapshot.Measurements = append(snapshot.Measurements,
+			measurement[Value] = float64(s.Count())
+			batch.Measurements = append(batch.Measurements, measurement)
+			batch.Measurements = append(batch.Measurements,
 				Measurement{
 					Name:   fmt.Sprintf("%s.%s", name, "1min"),
 					Tags:   mergedTags,
-					Value:  m.Rate1(),
+					Value:  s.Rate1(),
 					Period: int64(self.Interval.Seconds()),
 					Attributes: map[string]interface{}{
 						DisplayUnitsLong:  Operations,
@@ -172,7 +173,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 				Measurement{
 					Name:   fmt.Sprintf("%s.%s", name, "5min"),
 					Tags:   mergedTags,
-					Value:  m.Rate5(),
+					Value:  s.Rate5(),
 					Period: int64(self.Interval.Seconds()),
 					Attributes: map[string]interface{}{
 						DisplayUnitsLong:  Operations,
@@ -183,7 +184,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 				Measurement{
 					Name:   fmt.Sprintf("%s.%s", name, "15min"),
 					Tags:   mergedTags,
-					Value:  m.Rate15(),
+					Value:  s.Rate15(),
 					Period: int64(self.Interval.Seconds()),
 					Attributes: map[string]interface{}{
 						DisplayUnitsLong:  Operations,
@@ -193,20 +194,21 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 				},
 			)
 		case metrics.Timer:
+			s := m.Snapshot()
 			measurement[Name] = name
-			measurement[Value] = float64(m.Count())
-			snapshot.Measurements = append(snapshot.Measurements, measurement)
+			measurement[Value] = float64(s.Count())
+			batch.Measurements = append(batch.Measurements, measurement)
 			if m.Count() > 0 {
 				appOpticsName := fmt.Sprintf("%s.%s", name, "timer.mean")
 				measurements := make([]Measurement, histogramMeasurementCount, histogramMeasurementCount)
 				measurements[0] = Measurement{
 					Name:       appOpticsName,
 					Tags:       mergedTags,
-					Count:      uint64(m.Count()),
-					Sum:        m.Mean() * float64(m.Count()),
-					Max:        float64(m.Max()),
-					Min:        float64(m.Min()),
-					StdDev:     float64(m.StdDev()),
+					Count:      uint64(s.Count()),
+					Sum:        s.Mean() * float64(s.Count()),
+					Max:        float64(s.Max()),
+					Min:        float64(s.Min()),
+					StdDev:     float64(s.StdDev()),
 					Period:     int64(self.Interval.Seconds()),
 					Attributes: self.TimerAttributes,
 				}
@@ -219,12 +221,12 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 						Attributes: self.TimerAttributes,
 					}
 				}
-				snapshot.Measurements = append(snapshot.Measurements, measurements...)
-				snapshot.Measurements = append(snapshot.Measurements,
+				batch.Measurements = append(batch.Measurements, measurements...)
+				batch.Measurements = append(batch.Measurements,
 					Measurement{
 						Name:   fmt.Sprintf("%s.%s", name, "rate.1min"),
 						Tags:   mergedTags,
-						Value:  m.Rate1(),
+						Value:  s.Rate1(),
 						Period: int64(self.Interval.Seconds()),
 						Attributes: map[string]interface{}{
 							DisplayUnitsLong:  Operations,
@@ -235,7 +237,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 					Measurement{
 						Name:   fmt.Sprintf("%s.%s", name, "rate.5min"),
 						Tags:   mergedTags,
-						Value:  m.Rate5(),
+						Value:  s.Rate5(),
 						Period: int64(self.Interval.Seconds()),
 						Attributes: map[string]interface{}{
 							DisplayUnitsLong:  Operations,
@@ -246,7 +248,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 					Measurement{
 						Name:   fmt.Sprintf("%s.%s", name, "rate.15min"),
 						Tags:   mergedTags,
-						Value:  m.Rate15(),
+						Value:  s.Rate15(),
 						Period: int64(self.Interval.Seconds()),
 						Attributes: map[string]interface{}{
 							DisplayUnitsLong:  Operations,
