@@ -1,4 +1,4 @@
-module github.com/ysamlan/go-metrics-appoptics
+module github.com/appoptics/go-metrics-appoptics
 
 go 1.12
 
