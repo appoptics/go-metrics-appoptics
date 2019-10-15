@@ -8,7 +8,7 @@ import (
 func TestDecodeMetric(t *testing.T) {
 	name, tags := decodeMetricName("myMetric")
 	assert.Equal(t, "myMetric", name)
-	assert.Equal(t, map[string]string{}, tags)
+	assert.Equal(t, 0, len(tags))
 
 	name, tags = decodeMetricName("myMetric#foo=1")
 	assert.Equal(t, "myMetric", name)
