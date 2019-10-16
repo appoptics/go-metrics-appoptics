@@ -1,7 +1,6 @@
 This is a reporter for the [go-metrics](https://github.com/rcrowley/go-metrics)
 library which posts the metrics to [AppOptics](https://www.appoptics.com/)/Librato. 
-It is forked from [go-metrics-librato](https://github.com/mihasya/go-metrics-librato) and
-was originally part of the `go-metrics` library itself.
+It is forked from [ysamlan](https://github.com/mihasya/go-metrics-librato)/[mihaysa](https://github.com/mihasya/go-metrics-librato)'s reporters.
 
 This library supports tagged metrics only; source-based metrics have been deprecated by Librato.
 The original [go-metrics-librato](https://github.com/mihasya/go-metrics-librato) library can be used
@@ -10,7 +9,7 @@ if you need to upload source-based metrics instead.
 ### Usage
 
 ```go
-import "github.com/ysamlan/go-metrics-appoptics"
+import "github.com/appoptics/go-metrics-appoptics"
 
 go appoptics.AppOptics(metrics.DefaultRegistry,
     10*time.Second,              // interval for uploads
@@ -53,7 +52,7 @@ this.
 To get the same behavior you're used to from the original Librato reporter (only with tags instead
 of sources):
 
-* Change the import to `"github.com/ysamlan/go-metrics-appoptics"`
+* Change the import to `"github.com/appoptics/go-metrics-appoptics"`
 * Change `librato.Librato` to `appoptics.AppOptics`
 * Remove the email argument from the `appoptics.AppOptics` function call (the updated AppOptics API
   only requires the token)
