@@ -1,10 +1,7 @@
 This is a reporter for the [go-metrics](https://github.com/rcrowley/go-metrics)
-library which posts the metrics to [AppOptics](https://www.appoptics.com/)/Librato. 
-It is forked from [ysamlan](https://github.com/mihasya/go-metrics-librato)/[mihaysa](https://github.com/mihasya/go-metrics-librato)'s reporters.
-
-This library supports tagged metrics only; source-based metrics have been deprecated by Librato.
-The original [go-metrics-librato](https://github.com/mihasya/go-metrics-librato) library can be used
-if you need to upload source-based metrics instead.
+library which posts the metrics to [AppOptics](https://www.appoptics.com/).
+It is based on [ysamlan's AppOptics reporter](https://github.com/ysamlan/go-metrics-appoptics),
+which was based on [mihaysa's Librato reporter](https://github.com/mihasya/go-metrics-librato).
 
 ### Usage
 
@@ -32,6 +29,15 @@ metrics will have that prefix prepended to their names. Use `""` if you don't wa
 *Tags*: Tags passed during the initialization are attached to all this reporter's measurements to
 AppOptics.
 
+Tags can also be created on a per-metric level using the [`.Tag()`](https://godoc.org/github.com/appoptics/go-metrics-appoptics#TaggedMetric.Tag) function, for example:
+```go
+appoptics.Metric("myMetric").Tag("tagA", "foo").Tag("tagB", "bar").Meter().Mark()
+```
+Or, to create a histogram with a custom sample type:
+```go
+appoptics.Metric("myMetric").Tag("tag", "foo").WithSample(func() metrics.Sample { return metrics.NewUniformSample(1000) }).Histogram().Update(100)
+```
+
 *Selective runtime metric uploading*: If you're using go-metrics' `CaptureRuntimeMemStats` feature,
 it's great and automates collecting a lot of useful data. Unfortunately, it also adds 30 metrics, 
 which can eat up a lot of metric hours with AppOptics. The `runtimeMetricsWhiteleist` parameter lets
@@ -40,14 +46,11 @@ yourself. See [the source](https://github.com/rcrowley/go-metrics/blob/master/ru
 possible values. Pass `nil` to allow all, and an empty slice to disable uploads for all `runtime.` 
 metrics.
 
-### Limitations
-Tags are attached at the batch level, not to the individual metrics/measurements within
-the batch. You can work around this by using a different Registry and appoptics.AppOptics 
-goroutine for metrics that need different tags. See 
-[#1](https://github.com/ysamlan/go-metrics-appoptics/issues/1) for potential approaches for fixing
-this.
-
 ### Migrating from `rcrowley/go-metrics` / `mihasya/go-metrics-librato` implementation
+
+This library supports tagged metrics only; source-based metrics have been deprecated.
+The original [go-metrics-librato](https://github.com/mihasya/go-metrics-librato) library can be used
+if you need to upload source-based metrics instead.
 
 To get the same behavior you're used to from the original Librato reporter (only with tags instead
 of sources):
