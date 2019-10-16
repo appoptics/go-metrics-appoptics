@@ -46,14 +46,9 @@ yourself. See [the source](https://github.com/rcrowley/go-metrics/blob/master/ru
 possible values. Pass `nil` to allow all, and an empty slice to disable uploads for all `runtime.` 
 metrics.
 
-### Migrating from `rcrowley/go-metrics` / `mihasya/go-metrics-librato` implementation
+### Migrating from Librato and the `rcrowley/go-metrics` / `mihasya/go-metrics-librato` implementation
 
-This library supports tagged metrics only; source-based metrics have been deprecated.
-The original [go-metrics-librato](https://github.com/mihasya/go-metrics-librato) library can be used
-if you need to upload source-based metrics instead.
-
-To get the same behavior you're used to from the original Librato reporter (only with tags instead
-of sources):
+Source-based metrics are not supported in AppOptics. To migrate from the old Librato reporter (only with tags instead of sources):
 
 * Change the import to `"github.com/appoptics/go-metrics-appoptics"`
 * Change `librato.Librato` to `appoptics.AppOptics`
